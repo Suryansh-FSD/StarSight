@@ -1,9 +1,9 @@
 Target,Quarter,Cadence,Number of Observations,Time Span,File Name,Download Status
-Kepler-10,0,Long,469,9.7062 days,kepler-10_q0.fits,Success
+Kepler-10,3,Long,4134,89.2514 days,kepler-10_q3.fits,Success
 Kepler-22,0,Long,469,9.7063 days,kepler-22_q0.fits,Success
 Kepler-90,1,Long,1624,33.4711 days,kepler-90_q1.fits,Success
-Kepler-186,1,Long,1624,33.4716 days,kepler-186_q1.fits,Success
-Kepler-452,0,Long,469,9.7064 days,kepler-452_q0.fits,Success
-Kepler-62,1,Long,1624,33.4712 days,kepler-62_q1.fits,Success
-Kepler-7,0,Long,469,9.7064 days,kepler-7_q0.fits,Success
+Kepler-186,3,Long,4134,89.2503 days,kepler-186_q3.fits,Success
+Kepler-452,3,Long,4134,89.2504 days,kepler-452_q3.fits,Success
+Kepler-62,3,Long,4134,89.2509 days,kepler-62_q3.fits,Success
+Kepler-7,3,Long,4134,89.2502 days,kepler-7_q3.fits,Success
 Kepler-8,0,Long,469,9.7063 days,kepler-8_q0.fits,Success

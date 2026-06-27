@@ -25,8 +25,9 @@ else:
 DEV_MODE = True
 
 # Directory Paths (Separating code from persistent data in Colab)
-RAW_DIR = BASE_DIR / "data" / "raw"
-PROCESSED_DIR = BASE_DIR / "data" / "processed"
+DATA_DIR = BASE_DIR / "data"  # FIX: expose DATA_DIR for spec/interface compatibility
+RAW_DIR = DATA_DIR / "raw"
+PROCESSED_DIR = DATA_DIR / "processed"
 RESULTS_DIR = BASE_DIR / "results"
 
 # Centralized Artifact Directories
@@ -48,6 +49,14 @@ RANDOM_SEED = 42
 LEARNING_RATE = 1e-3
 MAX_EPOCHS = 30
 EARLY_STOPPING_PATIENCE = 5
+
+# FIX: spec/interface aliases so notebooks written against the documented names also work.
+# These mirror the canonical names above (MAX_EPOCHS / EARLY_STOPPING_PATIENCE) used by
+# trainer.py and experiment.py; keep both in sync if you change them.
+NUM_EPOCHS = MAX_EPOCHS
+PATIENCE = EARLY_STOPPING_PATIENCE
+BATCH_SIZE = 32
+GRAD_CLIP = 1.0
 
 # Compute Device Detection Cascade with PyTorch fallback
 try:

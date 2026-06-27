@@ -30,3 +30,22 @@ Thumbs.db
 
 # StarSight training outputs
 artifacts/
+/results/
+
+# IDE, agent, and AI bridge files
+.agent/
+.aicb/
+.cursorrules
+.windsurfrules
+.kilocode/
+.kilocoderules
+.vscode/
+AGENT.md
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.github/copilot-instructions.md
+
+# Scratch directories
+scratch/
+

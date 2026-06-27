@@ -2,6 +2,23 @@ import torch
 import torch.nn as nn
 from src.models.base_model import StarSightBaseModel
 
+class MPSCompatibleAdaptiveAvgPool1d(nn.Module):
+    """
+    Wrapper for AdaptiveAvgPool1d that transfers the tensor to CPU before pooling if the 
+    underlying device is MPS. This works around a known PyTorch bug on macOS/Apple Silicon:
+    https://github.com/pytorch/pytorch/issues/96056
+    """
+    def __init__(self, output_size: int):
+        super(MPSCompatibleAdaptiveAvgPool1d, self).__init__()
+        self.output_size = output_size
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.device.type == "mps":
+            orig_device = x.device
+            return nn.functional.adaptive_avg_pool1d(x.cpu(), self.output_size).to(orig_device)
+        else:
+            return nn.functional.adaptive_avg_pool1d(x, self.output_size)
+
 class AstroNet(StarSightBaseModel):
     """
     A dual-branch Convolutional Neural Network inspired by AstroNet for exoplanet detection.
@@ -32,7 +49,7 @@ class AstroNet(StarSightBaseModel):
             nn.Conv1d(in_channels=64, out_channels=128, kernel_size=5, padding=2),
             nn.BatchNorm1d(128),
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(8)  # Fixes dimension to (Batch, 128, 8) -> 1024 flat
+            MPSCompatibleAdaptiveAvgPool1d(8)  # Fixes dimension to (Batch, 128, 8) -> 1024 flat
         )
         
         # 2. Local View Branch
@@ -51,7 +68,7 @@ class AstroNet(StarSightBaseModel):
             nn.Conv1d(in_channels=32, out_channels=64, kernel_size=5, padding=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(8)  # Fixes dimension to (Batch, 64, 8) -> 512 flat
+            MPSCompatibleAdaptiveAvgPool1d(8)  # Fixes dimension to (Batch, 64, 8) -> 512 flat
         )
         
         # 3. Dense Classifier Head

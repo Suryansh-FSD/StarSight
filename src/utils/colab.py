@@ -47,3 +47,28 @@ def print_environment_summary() -> None:
     print(f"Config Snapshot Dir    : {config.CONFIGS_DIR.resolve()}")
     print(f"Summaries Directory    : {config.SUMMARIES_DIR.resolve()}")
     print("=" * 60)
+
+    # Check for missing project dependencies
+    missing_packages = []
+    for pkg in ["lightkurve", "astropy", "astroquery", "torch"]:
+        try:
+            __import__(pkg)
+        except ImportError:
+            missing_packages.append(pkg)
+            
+    if missing_packages:
+        print("\n" + "!" * 60)
+        print(f" WARNING: Missing project dependencies: {', '.join(missing_packages)}")
+        print("!" * 60)
+        if not is_colab:
+            print(" You are likely running this notebook with the wrong Jupyter kernel.")
+            print(f" Current Python executable: {sys.executable}")
+            print("\n To resolve this and use the pre-configured project environment (.venv):")
+            print(" 1. Click the kernel selector button (top-right of your notebook editor).")
+            print(" 2. Choose 'Select Another Kernel...' -> 'Python Environments'.")
+            print(" 3. Select the '.venv' interpreter in the StarSight project root:")
+            print(f"    {config.BASE_DIR.resolve()}/.venv/bin/python")
+        else:
+            print(" Some required packages were not found in the Colab environment.")
+            print(" Please check your internet connection and ensure requirements.txt is present.")
+        print("!" * 60 + "\n")

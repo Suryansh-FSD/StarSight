@@ -81,6 +81,22 @@ def bootstrap_repo(project_root: Path) -> None:
             except subprocess.CalledProcessError as e:
                 raise RuntimeError(f"Failed to clone private repository: Check username and PAT validity.")
             
+    # Install dependencies from requirements.txt if running in Google Colab
+    if 'google.colab' in sys.modules:
+        requirements_file = project_root / "requirements.txt"
+        if requirements_file.exists():
+            print("Google Colab detected. Installing project dependencies from requirements.txt...")
+            try:
+                subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "-q", "-r", str(requirements_file)],
+                    check=True
+                )
+                print("All dependencies installed successfully.")
+            except subprocess.CalledProcessError as e:
+                print(f"Warning: Package installation via pip failed: {e}")
+        else:
+            print("Warning: requirements.txt not found. Skipping dependency installation.")
+
     # Add project root to sys.path if not present
     src_path = str(project_root.resolve())
     if src_path not in sys.path:

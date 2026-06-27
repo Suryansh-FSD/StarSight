@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 import src.config as config
 
@@ -9,7 +10,7 @@ def detect_colab() -> bool:
     Returns:
         bool: True if in Colab, False otherwise.
     """
-    return 'google.colab' in sys.modules
+    return 'google.colab' in sys.modules and os.path.exists('/content')
 
 def mount_drive_if_needed() -> None:
     """

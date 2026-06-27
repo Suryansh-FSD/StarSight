@@ -1,8 +1,9 @@
 import sys
+import os
 from pathlib import Path
 
-# Part 1: Automatic Environment Detection
-IS_COLAB = 'google.colab' in sys.modules
+# Part 1: Automatic Environment Detection (Checking for Colab and the cloud container path '/content')
+IS_COLAB = 'google.colab' in sys.modules and os.path.exists('/content')
 
 # Part 2 & 3: Resolve Persistent Project Root and Base Directory
 if IS_COLAB:

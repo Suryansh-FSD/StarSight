@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from typing import Tuple, list
+from typing import Tuple
 
 def train_epoch(model: nn.Module, loader, optimizer: torch.optim.Optimizer, criterion: nn.Module, device: torch.device) -> Tuple[float, float]:
     """

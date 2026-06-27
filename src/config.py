@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-import torch
 
 # Part 1: Automatic Environment Detection
 IS_COLAB = 'google.colab' in sys.modules
@@ -49,13 +48,17 @@ LEARNING_RATE = 1e-3
 MAX_EPOCHS = 30
 EARLY_STOPPING_PATIENCE = 5
 
-# Compute Device Detection Cascade: CUDA -> Apple MPS -> CPU
-if torch.cuda.is_available():
-    DEVICE = torch.device("cuda")
-elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-    DEVICE = torch.device("mps")
-else:
-    DEVICE = torch.device("cpu")
+# Compute Device Detection Cascade with PyTorch fallback
+try:
+    import torch
+    if torch.cuda.is_available():
+        DEVICE = torch.device("cuda")
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        DEVICE = torch.device("mps")
+    else:
+        DEVICE = torch.device("cpu")
+except ImportError:
+    DEVICE = "cpu (PyTorch not installed)"
 
 GLOBAL_BINS = 2001
 LOCAL_BINS = 201

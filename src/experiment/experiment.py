@@ -15,6 +15,7 @@ from src.utils.reproducibility import set_seed
 from src.models.datasets import create_data_loaders
 from src.models.metrics import calculate_metrics
 from src.visualization.plots import plot_diagnostic_curves, plot_roc_and_confusion_matrix
+from src.models.registry import get_model
 
 class Experiment:
     """
@@ -28,6 +29,7 @@ class Experiment:
         self.experiment_id = f"exp_{int(time.time())}"
         self.logger = self._setup_logging()
         self.git_hash = self._get_git_commit_hash()
+        self.git_branch = self._get_git_branch()
         
     def _setup_logging(self) -> logging.Logger:
         """Sets up the file and console logging handlers under logs/."""
@@ -59,6 +61,21 @@ class Experiment:
             self.logger.warning("Could not retrieve Git commit hash. Defaulting to 'n/a'.")
             return "n/a"
 
+    def _get_git_branch(self) -> str:
+        """Attempts to dynamically read the current git branch name."""
+        try:
+            cmd = ["git", "branch", "--show-current"]
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+            branch = result.stdout.strip()
+            if not branch:
+                cmd_fallback = ["git", "rev-parse", "--abbrev-ref", "HEAD"]
+                result_fallback = subprocess.run(cmd_fallback, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+                branch = result_fallback.stdout.strip()
+            return branch
+        except Exception:
+            self.logger.warning("Could not retrieve Git branch name. Defaulting to 'n/a'.")
+            return "n/a"
+
     def save_config_snapshot(self) -> None:
         """Saves a JSON snapshot of the training parameters to configs/config.json."""
         self.config.CONFIGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -67,6 +84,7 @@ class Experiment:
             "experiment_id": self.experiment_id,
             "timestamp": self.timestamp,
             "git_commit_hash": self.git_hash,
+            "git_branch": self.git_branch,
             "learning_rate": self.config.LEARNING_RATE,
             "epochs": self.config.MAX_EPOCHS,
             "random_seed": self.config.RANDOM_SEED,
@@ -83,15 +101,18 @@ class Experiment:
             json.dump(snapshot, f, indent=4)
         self.logger.info(f"Configuration snapshot saved to {snapshot_path.resolve()}")
 
-    def run_cnn_experiment(self, model: nn.Module, optimizer: torch.optim.Optimizer, criterion: nn.Module) -> Dict[str, Any]:
+    def run_experiment(self, model_name: str, model_kwargs: Dict[str, Any], optimizer_cls, criterion) -> Dict[str, Any]:
         """
-        Orchestrates dataset creation, PyTorch model training, checkpoints saving,
-        inference, metrics computation, plotting, and exports run diagnostics.
+        Orchestrates dataset creation, model registry lookups, PyTorch model training, 
+        checkpoints saving, inference, metrics calculation, plotting, and exports run diagnostics.
         """
-        self.logger.info(f"Starting CNN Experiment: {self.experiment_id}")
+        self.logger.info(f"Starting Experiment Run: {self.experiment_id}")
         self.save_config_snapshot()
         
-        # 1. Prepare Datasets & DataLoaders
+        # 1. Instantiate Model from Registry
+        model = get_model(model_name, **model_kwargs)
+        
+        # 2. Prepare Datasets & DataLoaders
         data_path = self.config.PROCESSED_DIR / "final_dataset.npz"
         train_loader, val_loader, test_loader, train_dataset = create_data_loaders(data_path, self.config)
         
@@ -103,7 +124,26 @@ class Experiment:
         
         self.logger.info(f"Dataset split counts: Train={train_size}, Val={val_size}, Test={test_size}")
         
-        # 2. Run Training Loop epoch-by-epoch
+        # Capture model summary structure and print
+        summary_text = model.get_summary_text(
+            global_shape=(1, self.config.GLOBAL_BINS),
+            local_shape=(1, self.config.LOCAL_BINS),
+            stellar_shape=(1, 3),
+            device=self.config.DEVICE
+        )
+        print(summary_text)
+        
+        # Save model summary to disk
+        self.config.SUMMARIES_DIR.mkdir(parents=True, exist_ok=True)
+        model_summary_path = self.config.SUMMARIES_DIR / "model_summary.txt"
+        with open(model_summary_path, "w") as f:
+            f.write(summary_text)
+        self.logger.info(f"Model architecture summary saved to {model_summary_path.resolve()}")
+        
+        # 3. Instantiate Optimizer
+        optimizer = optimizer_cls(model.parameters(), lr=self.config.LEARNING_RATE)
+        
+        # 4. Run Training Loop epoch-by-epoch
         start_time = time.time()
         
         from src.models.trainer import train_epoch, evaluate_epoch
@@ -163,7 +203,7 @@ class Experiment:
         val_losses = [epoch_log["val_loss"] for epoch_log in history]
         best_epoch = int(np.argmin(val_losses)) + 1 if len(val_losses) > 0 else 1
         
-        # 3. Test Set Inference & Decoupled Metrics Calculation
+        # 5. Test Set Inference & Decoupled Metrics Calculation
         model.load_checkpoint(best_model_path, device=self.config.DEVICE)
         model.eval()
         
@@ -191,7 +231,7 @@ class Experiment:
         np.savez_compressed(predictions_path, y_true=y_true, y_pred_probs=y_pred_probs)
         self.logger.info(f"Test set predictions saved to {predictions_path.resolve()}")
         
-        # Decoupled metrics calculations (returns dictionary)
+        # Decoupled metrics calculations
         final_metrics = calculate_metrics(y_true, y_pred_probs)
         
         # Save final metrics summary to CSV
@@ -200,11 +240,11 @@ class Experiment:
         df_metrics.to_csv(metrics_csv_path, index=False)
         self.logger.info(f"Saved test evaluation metrics to {metrics_csv_path.name}")
         
-        # 4. Decoupled Plotting Visualization
+        # 6. Decoupled Plotting Visualization
         plot_diagnostic_curves(history, self.config.FIGURES_DIR)
         plot_roc_and_confusion_matrix(y_true, y_pred_probs, self.config.FIGURES_DIR)
         
-        # 5. Export Experiment Summary JSON
+        # 7. Export Experiment Summary JSON to summaries/
         summary = {
             "experiment_id": self.experiment_id,
             "timestamp": self.timestamp,
@@ -228,9 +268,46 @@ class Experiment:
             "training_duration_seconds": float(duration)
         }
         
-        summary_path = self.config.METRICS_DIR / "experiment_summary.json"
+        summary_path = self.config.SUMMARIES_DIR / "experiment_summary.json"
         with open(summary_path, "w") as f:
             json.dump(summary, f, indent=4)
         self.logger.info(f"Experiment summary telemetry exported to {summary_path.resolve()}")
         
+        # 8. Post-experiment automated checks validation
+        self.validate_experiment_outputs()
+        
         return summary
+
+    def validate_experiment_outputs(self) -> dict:
+        """
+        Validates that all expected artifact files were successfully written to disk.
+        Returns a dictionary mapping path checks to binary outcomes.
+        """
+        checks = {
+            "best_model_checkpoint": (self.config.MODELS_DIR / "best_model.pt").exists(),
+            "final_model_checkpoint": (self.config.MODELS_DIR / "final_model.pt").exists(),
+            "metrics_history_csv": (self.config.METRICS_DIR / "history.csv").exists(),
+            "evaluation_metrics_csv": (self.config.METRICS_DIR / "evaluation_metrics.csv").exists(),
+            "loss_accuracy_curves": (self.config.FIGURES_DIR / "loss_accuracy_curves.png").exists(),
+            "roc_confusion_matrix": (self.config.FIGURES_DIR / "roc_confusion_matrix.png").exists(),
+            "config_snapshot_json": (self.config.CONFIGS_DIR / "config.json").exists(),
+            "experiment_summary_json": (self.config.SUMMARIES_DIR / "experiment_summary.json").exists(),
+            "model_summary_txt": (self.config.SUMMARIES_DIR / "model_summary.txt").exists(),
+            "predictions_npz": (self.config.PREDICTIONS_DIR / "test_predictions.npz").exists(),
+            "training_log": (self.config.LOGS_DIR / "training.log").exists()
+        }
+        
+        print("\n" + "=" * 60)
+        print("            POST-EXPERIMENT ARTIFACT VALIDATION")
+        print("=" * 60)
+        all_passed = True
+        for key, exists in checks.items():
+            status = "PASSED" if exists else "FAILED"
+            if not exists:
+                all_passed = False
+            print(f"{key:<30}: {status}")
+        print("=" * 60)
+        print(f"OVERALL VALIDATION STATUS     : {'SUCCESS' if all_passed else 'FAILURE'}")
+        print("=" * 60 + "\n")
+        
+        return checks

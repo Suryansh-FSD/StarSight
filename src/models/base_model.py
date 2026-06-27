@@ -24,22 +24,31 @@ class StarSightBaseModel(nn.Module):
         trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
         return total, trainable
 
+    def get_summary_text(self, global_shape: tuple, local_shape: tuple, stellar_shape: tuple, device: torch.device) -> str:
+        """
+        Generates a standardized textual summary of model parameters, inputs, and device config.
+        """
+        total, trainable = self.count_parameters()
+        summary_lines = [
+            "=" * 60,
+            "                    ASTRONET MODEL SUMMARY",
+            "=" * 60,
+            f"Device Configuration           : {device}",
+            f"Global Input Feature Shape     : {global_shape}",
+            f"Local Input Feature Shape      : {local_shape}",
+            f"Stellar Metadata Feature Shape : {stellar_shape}",
+            f"Output Activation Shape        : (Batch, 1) (Raw Logits)",
+            f"Total Model Parameters         : {total:,}",
+            f"Trainable Model Parameters     : {trainable:,}",
+            "=" * 60
+        ]
+        return "\n".join(summary_lines)
+
     def print_summary(self, global_shape: tuple, local_shape: tuple, stellar_shape: tuple, device: torch.device) -> None:
         """
         Print a standardized summary of the model inputs, outputs, and parameters.
         """
-        total, trainable = self.count_parameters()
-        print("=" * 60)
-        print("                    ASTRONET MODEL SUMMARY")
-        print("=" * 60)
-        print(f"Device Configuration           : {device}")
-        print(f"Global Input Feature Shape     : {global_shape}")
-        print(f"Local Input Feature Shape      : {local_shape}")
-        print(f"Stellar Metadata Feature Shape : {stellar_shape}")
-        print(f"Output Activation Shape        : (Batch, 1) (Raw Logits)")
-        print(f"Total Model Parameters         : {total:,}")
-        print(f"Trainable Model Parameters     : {trainable:,}")
-        print("=" * 60)
+        print(self.get_summary_text(global_shape, local_shape, stellar_shape, device))
 
     def save_checkpoint(self, path: Path) -> None:
         """

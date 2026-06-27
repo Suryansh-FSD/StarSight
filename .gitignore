@@ -8,13 +8,16 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.pt
+*.pth
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
-# Local data files (avoid committing large binary datasets)
-data/raw/
-data/processed/
+# Large binaries & data sources (restricted to root level)
+/data/
+/models/
+*.fits
 
 # OS-specific files
 .DS_Store

@@ -31,9 +31,10 @@ METRICS_DIR = ARTIFACTS_DIR / "metrics"
 FIGURES_DIR = ARTIFACTS_DIR / "figures"
 LOGS_DIR = ARTIFACTS_DIR / "logs"
 PREDICTIONS_DIR = ARTIFACTS_DIR / "predictions"
+CONFIGS_DIR = ARTIFACTS_DIR / "configs"
 
 # Ensure all directories exist programmatically
-for folder in [RAW_DIR, PROCESSED_DIR, RESULTS_DIR, MODELS_DIR, METRICS_DIR, FIGURES_DIR, LOGS_DIR, PREDICTIONS_DIR]:
+for folder in [RAW_DIR, PROCESSED_DIR, RESULTS_DIR, MODELS_DIR, METRICS_DIR, FIGURES_DIR, LOGS_DIR, PREDICTIONS_DIR, CONFIGS_DIR]:
     folder.mkdir(parents=True, exist_ok=True)
 
 # Training Hyperparameters

@@ -22,7 +22,7 @@ else:
 # Execution Modes:
 # True: Development Mode (runs on a small dataset verification)
 # False: Training Mode (runs on the full dataset)
-DEV_MODE = True
+DEV_MODE = False
 
 # Directory Paths (Separating code from persistent data in Colab)
 DATA_DIR = BASE_DIR / "data"  # FIX: expose DATA_DIR for spec/interface compatibility

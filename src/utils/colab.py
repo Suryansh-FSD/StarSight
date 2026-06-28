@@ -1,7 +1,7 @@
 import sys
 import os
-from pathlib import Path
 import src.config as config
+
 
 def detect_colab() -> bool:
     """

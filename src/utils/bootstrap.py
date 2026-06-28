@@ -1,8 +1,8 @@
-import os
 import sys
 import subprocess
 import getpass
 from pathlib import Path
+
 
 def bootstrap_repo(project_root: Path) -> None:
     """

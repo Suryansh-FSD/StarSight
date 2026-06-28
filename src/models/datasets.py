@@ -56,11 +56,16 @@ def create_data_loaders(data_path: Path, config) -> tuple:
     csv_path = config.RESULTS_DIR / "transit_summary.csv"
     if csv_path.exists():
         df = pd.read_csv(csv_path)
-        target_names = list(df["Target"])
+        base_names = list(df["Target"])
+        target_names = []
+        for name in base_names:
+            target_names.append(f"{name}_Pos")
+            target_names.append(f"{name}_Neg")
         if config.DEV_MODE:
             target_names = target_names[:4]
     else:
         target_names = [f"Target_{i}" for i in range(num_samples)]
+
         
     # Split splits with fixed seed
     # Handling small datasets (e.g. 4 samples in dev mode)

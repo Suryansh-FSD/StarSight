@@ -140,8 +140,12 @@ class Experiment:
             f.write(summary_text)
         self.logger.info(f"Model architecture summary saved to {model_summary_path.resolve()}")
         
+        # Move model to target compute device before optimization
+        model.to(self.config.DEVICE)
+        
         # 3. Instantiate Optimizer
         optimizer = optimizer_cls(model.parameters(), lr=self.config.LEARNING_RATE)
+
         
         # 4. Run Training Loop epoch-by-epoch
         start_time = time.time()

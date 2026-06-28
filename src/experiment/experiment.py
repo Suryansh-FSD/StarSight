@@ -107,8 +107,13 @@ class Experiment:
         self.logger.info(f"Starting Experiment Run: {self.experiment_id}")
         self.save_config_snapshot()
         
+        # Ensure reproducibility of weight initialization and shuffle patterns
+        from src.utils.reproducibility import set_seed
+        set_seed(self.config.RANDOM_SEED)
+        
         # 1. Instantiate Model from Registry
         model = get_model(model_name, **model_kwargs)
+
         
         # 2. Prepare Datasets & DataLoaders
         data_path = self.config.PROCESSED_DIR / "final_dataset.npz"

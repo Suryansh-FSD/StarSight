@@ -110,6 +110,13 @@ class AstroNet(StarSightBaseModel):
             x = self.classifier[i](x)
         return x
 
+    def extract_features(self, x_global: torch.Tensor, x_local: torch.Tensor, x_stellar: torch.Tensor) -> torch.Tensor:
+        """
+        Extracts the 128-dimensional representation from the penultimate layer of the classifier head.
+        Exposes an embedding vector before the final fully connected classification layer.
+        """
+        return self.get_penultimate_embedding(x_global, x_local, x_stellar)
+
     def forward(self, x_global: torch.Tensor, x_local: torch.Tensor, x_stellar: torch.Tensor) -> torch.Tensor:
         """
         Forward pass executing CNN branches, fusion, and fully connected classification.

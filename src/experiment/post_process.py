@@ -90,9 +90,17 @@ def main():
         plot_model_comparison(y_true, cnn_probs, hybrid_probs, cnn_metrics, hybrid_metrics, config.FIGURES_DIR)
         
     # 4. Load LightGBM model and generate SHAP explanations
-    if lightgbm_txt.exists() and embeddings_npz.exists():
-        print(f"[PostProcess] Loading LightGBM booster from {lightgbm_txt.name}...")
-        lgb_model = lgb.Booster(model_file=str(lightgbm_txt))
+    lightgbm_pkl = config.MODELS_DIR / "lightgbm.pkl"
+    if (lightgbm_pkl.exists() or lightgbm_txt.exists()) and embeddings_npz.exists():
+        if lightgbm_pkl.exists():
+            print(f"[PostProcess] Loading LightGBMClassifier wrapper from {lightgbm_pkl.name}...")
+            from src.models.lightgbm_classifier import LightGBMClassifier
+            lgb_clf = LightGBMClassifier()
+            lgb_clf.load(lightgbm_pkl)
+            lgb_model = lgb_clf.model
+        else:
+            print(f"[PostProcess] Loading LightGBM booster from {lightgbm_txt.name}...")
+            lgb_model = lgb.Booster(model_file=str(lightgbm_txt))
         
         print(f"[PostProcess] Loading feature embeddings from {embeddings_npz.name}...")
         emb_data = np.load(embeddings_npz)

@@ -272,13 +272,13 @@ class Experiment:
         )
         self.logger.info(f"Feature embeddings saved to {embeddings_path.resolve()}")
         
-        import lightgbm as lgb
+        from src.models.lightgbm_classifier import LightGBMClassifier
         
         self.logger.info("Training LightGBM Classifier on top of extracted embeddings...")
         lgb_start_train = time.time()
         
-        # Set small leaf/split parameters for tiny demo dataset
-        lgb_model = lgb.LGBMClassifier(
+        # Instantiate GBDT wrapper with appropriate parameters
+        lgb_clf = LightGBMClassifier(
             n_estimators=50,
             learning_rate=0.1,
             min_child_samples=2,
@@ -287,18 +287,22 @@ class Experiment:
             verbosity=-1
         )
         
-        lgb_model.fit(X_train, y_train)
+        lgb_clf.train(X_train, y_train)
         lgb_train_time = time.time() - lgb_start_train
         hybrid_train_time = duration + lgb_train_time
         
-        # Save LightGBM Model text
+        # Save both formats: text booster (for backward compatibility) and pickle wrapper (as requested)
         lgb_path = self.config.MODELS_DIR / "lightgbm_model.txt"
-        lgb_model.booster_.save_model(str(lgb_path))
+        lgb_clf.model.booster_.save_model(str(lgb_path))
         self.logger.info(f"Saved LightGBM model config text to {lgb_path.name}")
+        
+        lgb_pkl_path = self.config.MODELS_DIR / "lightgbm.pkl"
+        lgb_clf.save(lgb_pkl_path)
+        self.logger.info(f"Saved LightGBM model pickle wrapper to {lgb_pkl_path.name}")
         
         # Inference for hybrid model
         hybrid_start_inf = time.time()
-        hybrid_pred_probs = lgb_model.predict_proba(X_test)[:, 1]
+        hybrid_pred_probs = lgb_clf.predict_proba(X_test)
         hybrid_inference_total_time = (time.time() - hybrid_start_inf) + cnn_inference_time
         
         # Save predictions probabilities of the hybrid model
@@ -310,6 +314,12 @@ class Experiment:
         hybrid_metrics = calculate_metrics(y_test, hybrid_pred_probs)
         hybrid_metrics["training_time"] = float(hybrid_train_time)
         hybrid_metrics["inference_time"] = float(hybrid_inference_total_time)
+        
+        # Save metrics artifacts/metrics/lightgbm_metrics.csv
+        lgb_metrics_path = self.config.METRICS_DIR / "lightgbm_metrics.csv"
+        df_lgb_metrics = pd.DataFrame([hybrid_metrics])
+        df_lgb_metrics.to_csv(lgb_metrics_path, index=False)
+        self.logger.info(f"Saved LightGBM metrics to {lgb_metrics_path.name}")
         
         # Save final metrics summary to CSV
         df_metrics = pd.DataFrame([cnn_metrics])
@@ -329,7 +339,10 @@ class Experiment:
         df_comparison = pd.DataFrame(comparison_records)
         comparison_csv_path = self.config.METRICS_DIR / "model_comparison_metrics.csv"
         df_comparison.to_csv(comparison_csv_path, index=False)
-        self.logger.info(f"Saved model comparison metrics to {comparison_csv_path.name}")
+        
+        comparison_csv_path_new = self.config.METRICS_DIR / "comparison.csv"
+        df_comparison.to_csv(comparison_csv_path_new, index=False)
+        self.logger.info(f"Saved model comparison metrics to {comparison_csv_path.name} and {comparison_csv_path_new.name}")
         
         # 6. Decoupled Plotting Visualization and SHAP Explanation (via Subprocess to prevent macOS/MPS conflicts)
         self.logger.info("Triggering decoupled post-processing script for figures and SHAP explainability...")
@@ -429,9 +442,12 @@ class Experiment:
             "final_model_checkpoint": (self.config.MODELS_DIR / "final_model.pt").exists(),
             "cnn_encoder_checkpoint": (self.config.MODELS_DIR / "cnn_encoder.pt").exists(),
             "lightgbm_model_txt": (self.config.MODELS_DIR / "lightgbm_model.txt").exists(),
+            "lightgbm_pkl": (self.config.MODELS_DIR / "lightgbm.pkl").exists(),
             "metrics_history_csv": (self.config.METRICS_DIR / "history.csv").exists(),
             "evaluation_metrics_csv": (self.config.METRICS_DIR / "evaluation_metrics.csv").exists(),
+            "lightgbm_metrics_csv": (self.config.METRICS_DIR / "lightgbm_metrics.csv").exists(),
             "model_comparison_metrics_csv": (self.config.METRICS_DIR / "model_comparison_metrics.csv").exists(),
+            "comparison_csv": (self.config.METRICS_DIR / "comparison.csv").exists(),
             "loss_accuracy_curves": (self.config.FIGURES_DIR / "loss_accuracy_curves.png").exists(),
             "roc_confusion_matrix": (self.config.FIGURES_DIR / "roc_confusion_matrix.png").exists(),
             "model_comparison_plots": (self.config.FIGURES_DIR / "model_comparison_plots.png").exists(),

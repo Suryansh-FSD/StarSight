@@ -26,8 +26,8 @@ The pipeline is organized into five sequential steps, each driven by a structure
   * `visualization/`: Matplotlib plotting scripts for training curves.
 * `notebooks/`: Prototyping and orchestration notebooks (01 to 05).
 * `data/`: Ingested FITS light curves and preprocessed NumPy `.npz` archives.
-* `results/`: Detrending diagnostics, folded light curves, and the central `transit_summary.csv` sheet.
-* `artifacts/`: Houses model checkpoints (`best_model.pt`, `final_model.pt`, `cnn_encoder.pt`, `lightgbm_model.txt`), feature embeddings (`feature_embeddings.npz`), performance curves, metrics logs, SHAP plots/arrays (`explainability/`), Grad-CAM heatmaps/arrays (`gradcam/`), and run telemetry.
+* `results/`: Stores transit metrics (`transit_summary.csv`), detrending plots, and periodic folded curves.
+* `artifacts/`: Houses model checkpoints (`best_model.pt`, `final_model.pt`, `cnn_encoder.pt`, `lightgbm_model.txt`, `lightgbm.pkl`), feature embeddings (`feature_embeddings.npz`), performance curves, metrics logs (`history.csv`, `evaluation_metrics.csv`, `lightgbm_metrics.csv`, `comparison.csv`), SHAP plots/arrays (`explainability/`), Grad-CAM heatmaps/arrays (`gradcam/`), and run telemetry.
 * `docs/`: Technical specifications and audits.
 
 ---

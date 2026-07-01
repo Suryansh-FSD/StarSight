@@ -182,11 +182,11 @@ The project directory structure is organized as follows:
 * `src/`: Core Python source code:
   * `config.py`: Centralized configuration variables (directories, hyperparameters, compute devices).
   * `experiment/experiment.py`: Lifecycle manager orchestrating checkpoints, snapshots, evaluations, and hybrid classifier training.
-  * `models/`: Neural network architecture, datasets, metrics, and training loops.
+  * `models/`: Neural network architecture (AstroNet), datasets, metrics, explainability (Grad-CAM), and GBDT wrapper (LightGBMClassifier).
   * `utils/`: Environmental checks, repository bootstrappers, and random seeds utilities.
   * `visualization/`: Matplotlib plotting scripts for training history and evaluations.
 * `results/`: Stores transit metrics (`transit_summary.csv`), detrending plots, and periodic folded curves.  
-* `artifacts/`: Houses model weights checkpoints (`best_model.pt`, `final_model.pt`, `cnn_encoder.pt`, `lightgbm_model.txt`), feature embeddings (`feature_embeddings.npz`), configuration snapshots, diagnostic loss/ROC curves, comparison metrics/plots, SHAP explainability visualizations/arrays (`explainability/`), Grad-CAM spatial visualizations/numpy arrays/validation logs (`gradcam/` & `validation/`), and logs.
+* `artifacts/`: Houses model weights checkpoints (`best_model.pt`, `final_model.pt`, `cnn_encoder.pt`, `lightgbm_model.txt`, `lightgbm.pkl`), feature embeddings (`feature_embeddings.npz`), configuration snapshots, diagnostic loss/ROC curves, metrics logs (`history.csv`, `evaluation_metrics.csv`, `lightgbm_metrics.csv`, `comparison.csv`), comparison metrics/plots, SHAP explainability visualizations/arrays (`explainability/`), Grad-CAM spatial visualizations/numpy arrays/validation logs (`gradcam/` & `validation/`), and logs.
 
 ---
 

@@ -457,9 +457,15 @@ class Experiment:
             "predictions_npz": (self.config.PREDICTIONS_DIR / "test_predictions.npz").exists(),
             "predictions_hybrid_npz": (self.config.PREDICTIONS_DIR / "test_predictions_hybrid.npz").exists(),
             "feature_embeddings_npz": (self.config.PREDICTIONS_DIR / "feature_embeddings.npz").exists(),
-            "global_feature_importance_png": (self.config.EXPLAINABILITY_DIR / "global_feature_importance.png").exists(),
-            "summary_beeswarm_plot_png": (self.config.EXPLAINABILITY_DIR / "summary_beeswarm_plot.png").exists(),
-            "shap_explanations_npz": (self.config.EXPLAINABILITY_DIR / "shap_explanations.npz").exists(),
+            "shap_values_npz": (self.config.EXPLAINABILITY_DIR / "shap_values.npz").exists(),
+            "feature_importance_csv": (self.config.EXPLAINABILITY_DIR / "feature_importance.csv").exists(),
+            "global_summary_png": (self.config.EXPLAINABILITY_DIR / "global_summary.png").exists(),
+            "global_summary_svg": (self.config.EXPLAINABILITY_DIR / "global_summary.svg").exists(),
+            "waterfall_sample_1_png": (self.config.EXPLAINABILITY_DIR / "waterfall_sample_1.png").exists(),
+            "waterfall_sample_2_png": (self.config.EXPLAINABILITY_DIR / "waterfall_sample_2.png").exists(),
+            "beeswarm_png": (self.config.EXPLAINABILITY_DIR / "beeswarm.png").exists(),
+            "dependence_plot_png": (self.config.EXPLAINABILITY_DIR / "dependence_plot.png").exists(),
+            "explanation_json": (self.config.EXPLAINABILITY_DIR / "explanation.json").exists(),
             "gradcam_validation_json": (self.config.VALIDATION_DIR / "gradcam_validation.json").exists() if getattr(self.config, 'GRADCAM_ENABLED', True) else True,
             "training_log": (self.config.LOGS_DIR / "training.log").exists()
         }

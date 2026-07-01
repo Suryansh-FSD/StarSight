@@ -40,7 +40,22 @@ The pipeline is organized into five sequential steps, each driven by a structure
 
 ---
 
-## **4. Future Enhancements**
+## **4. Explainable AI (SHAP & Grad-CAM) Workflow**
+
+To ensure scientific correctness and transparency, StarSight integrates model explainability at both the neural network and booster levels:
+
+1. **Local and Global GBDT Attributions (SHAP):**
+   - Fits game-theoretic Shapley values (`shap.TreeExplainer`) on the downstream LightGBM classifier.
+   - Calculates the direct impact of each of the 131 inputs (128 deep spatial features + 3 physical stellar properties) on candidate classification.
+   - Automatically outputs beeswarm plots, global bar summaries (PNG & SVG), dependence plots, individual waterfall charts, and structured `explanation.json` logs summarizing feature importances per prediction.
+
+2. **Spatial CNN Attributions (Grad-CAM):**
+   - Applies Gradient-weighted Class Activation Mapping to the penultimate Conv1D layer of the Global and Local branches.
+   - Generates heatmaps and binned overlays highlighting specific physical transit phases driving the deep spatial representation.
+
+---
+
+## **5. Future Enhancements**
 
 The following features represent planned production extensions and are not part of the current core implementation:
 * **Interactive Dashboard:** Streamlit or Plotly web application interface for real-time visual vetting.

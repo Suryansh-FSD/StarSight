@@ -444,6 +444,7 @@ class Experiment:
             "global_feature_importance_png": (self.config.EXPLAINABILITY_DIR / "global_feature_importance.png").exists(),
             "summary_beeswarm_plot_png": (self.config.EXPLAINABILITY_DIR / "summary_beeswarm_plot.png").exists(),
             "shap_explanations_npz": (self.config.EXPLAINABILITY_DIR / "shap_explanations.npz").exists(),
+            "gradcam_validation_json": (self.config.VALIDATION_DIR / "gradcam_validation.json").exists() if getattr(self.config, 'GRADCAM_ENABLED', True) else True,
             "training_log": (self.config.LOGS_DIR / "training.log").exists()
         }
         

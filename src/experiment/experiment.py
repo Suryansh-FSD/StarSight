@@ -214,11 +214,13 @@ class Experiment:
         model.load_checkpoint(best_model_path, device=self.config.DEVICE)
         model.eval()
         
+        # Measure CNN Inference Time
+        cnn_start_inf = time.time()
         y_true_list = []
         y_pred_probs_list = []
         
         with torch.no_grad():
-            for x_global, x_local, x_stellar, y_true in test_loader:
+            for x_global, x_local, x_stellar, y_true_batch in test_loader:
                 x_global = x_global.to(self.config.DEVICE)
                 x_local = x_local.to(self.config.DEVICE)
                 x_stellar = x_stellar.to(self.config.DEVICE)
@@ -226,30 +228,115 @@ class Experiment:
                 logits = model(x_global, x_local, x_stellar)
                 probs = torch.sigmoid(logits)
                 
-                y_true_list.extend(y_true.cpu().numpy().flatten())
+                y_true_list.extend(y_true_batch.cpu().numpy().flatten())
                 y_pred_probs_list.extend(probs.cpu().numpy().flatten())
                 
+        cnn_inference_time = time.time() - cnn_start_inf
         y_true = np.array(y_true_list)
         y_pred_probs = np.array(y_pred_probs_list)
         
-        # Save prediction outputs
+        # Save standard CNN predictions
         self.config.PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
         predictions_path = self.config.PREDICTIONS_DIR / "test_predictions.npz"
         np.savez_compressed(predictions_path, y_true=y_true, y_pred_probs=y_pred_probs)
         self.logger.info(f"Test set predictions saved to {predictions_path.resolve()}")
         
-        # Decoupled metrics calculations
-        final_metrics = calculate_metrics(y_true, y_pred_probs)
+        # Compute CNN Metrics
+        cnn_metrics = calculate_metrics(y_true, y_pred_probs)
+        cnn_metrics["training_time"] = float(duration)
+        cnn_metrics["inference_time"] = float(cnn_inference_time)
+        
+        # Save standard CNN checkpoint as cnn_encoder.pt
+        cnn_encoder_path = self.config.MODELS_DIR / "cnn_encoder.pt"
+        model.save_checkpoint(cnn_encoder_path)
+        self.logger.info(f"Saved CNN encoder checkpoint to {cnn_encoder_path.name}")
+        
+        # --- Train and Evaluate Hybrid CNN + LightGBM ---
+        self.logger.info("Extracting feature embeddings from the penultimate layer...")
+        X_train, y_train = self._extract_embeddings_and_labels(model, train_loader)
+        X_val, y_val = self._extract_embeddings_and_labels(model, val_loader)
+        X_test, y_test = self._extract_embeddings_and_labels(model, test_loader)
+        
+        y_train = y_train.ravel()
+        y_val = y_val.ravel()
+        y_test = y_test.ravel()
+        
+        # Save feature embeddings NPZ
+        embeddings_path = self.config.PREDICTIONS_DIR / "feature_embeddings.npz"
+        np.savez_compressed(
+            embeddings_path,
+            X_train_emb=X_train, y_train=y_train,
+            X_val_emb=X_val, y_val=y_val,
+            X_test_emb=X_test, y_test=y_test
+        )
+        self.logger.info(f"Feature embeddings saved to {embeddings_path.resolve()}")
+        
+        import lightgbm as lgb
+        
+        self.logger.info("Training LightGBM Classifier on top of extracted embeddings...")
+        lgb_start_train = time.time()
+        
+        # Set small leaf/split parameters for tiny demo dataset
+        lgb_model = lgb.LGBMClassifier(
+            n_estimators=50,
+            learning_rate=0.1,
+            min_child_samples=2,
+            random_state=self.config.RANDOM_SEED,
+            n_jobs=1,
+            verbosity=-1
+        )
+        
+        lgb_model.fit(X_train, y_train)
+        lgb_train_time = time.time() - lgb_start_train
+        hybrid_train_time = duration + lgb_train_time
+        
+        # Save LightGBM Model text
+        lgb_path = self.config.MODELS_DIR / "lightgbm_model.txt"
+        lgb_model.booster_.save_model(str(lgb_path))
+        self.logger.info(f"Saved LightGBM model config text to {lgb_path.name}")
+        
+        # Inference for hybrid model
+        hybrid_start_inf = time.time()
+        hybrid_pred_probs = lgb_model.predict_proba(X_test)[:, 1]
+        hybrid_inference_total_time = (time.time() - hybrid_start_inf) + cnn_inference_time
+        
+        # Save predictions probabilities of the hybrid model
+        hybrid_preds_path = self.config.PREDICTIONS_DIR / "test_predictions_hybrid.npz"
+        np.savez_compressed(hybrid_preds_path, y_true=y_test, y_pred_probs=hybrid_pred_probs)
+        self.logger.info(f"Test set hybrid predictions saved to {hybrid_preds_path.resolve()}")
+        
+        # Compute Hybrid Metrics
+        hybrid_metrics = calculate_metrics(y_test, hybrid_pred_probs)
+        hybrid_metrics["training_time"] = float(hybrid_train_time)
+        hybrid_metrics["inference_time"] = float(hybrid_inference_total_time)
         
         # Save final metrics summary to CSV
-        df_metrics = pd.DataFrame([final_metrics])
+        df_metrics = pd.DataFrame([cnn_metrics])
         metrics_csv_path = self.config.METRICS_DIR / "evaluation_metrics.csv"
         df_metrics.to_csv(metrics_csv_path, index=False)
         self.logger.info(f"Saved test evaluation metrics to {metrics_csv_path.name}")
         
+        # Save model comparison metrics
+        comparison_records = []
+        for key in ["accuracy", "precision", "recall", "f1_score", "roc_auc", "training_time", "inference_time"]:
+            comparison_records.append({
+                "Metric": key.upper().replace("_", " "),
+                "CNN Only": cnn_metrics[key],
+                "CNN + LightGBM": hybrid_metrics[key]
+            })
+        
+        df_comparison = pd.DataFrame(comparison_records)
+        comparison_csv_path = self.config.METRICS_DIR / "model_comparison_metrics.csv"
+        df_comparison.to_csv(comparison_csv_path, index=False)
+        self.logger.info(f"Saved model comparison metrics to {comparison_csv_path.name}")
+        
         # 6. Decoupled Plotting Visualization
         plot_diagnostic_curves(history, self.config.FIGURES_DIR)
         plot_roc_and_confusion_matrix(y_true, y_pred_probs, self.config.FIGURES_DIR)
+        
+        # Save comparison plots
+        from src.visualization.plots import plot_model_comparison
+        plot_model_comparison(y_test, y_pred_probs, hybrid_pred_probs, cnn_metrics, hybrid_metrics, self.config.FIGURES_DIR)
         
         # 7. Export Experiment Summary JSON to summaries/
         summary = {
@@ -263,14 +350,18 @@ class Experiment:
                 "test": test_size
             },
             "best_epoch": best_epoch,
-            "final_metrics": final_metrics,
+            "final_metrics": cnn_metrics,
+            "hybrid_metrics": hybrid_metrics,
             "saved_model_paths": {
                 "best_model": str((self.config.MODELS_DIR / "best_model.pt").resolve()),
-                "final_model": str((self.config.MODELS_DIR / "final_model.pt").resolve())
+                "final_model": str((self.config.MODELS_DIR / "final_model.pt").resolve()),
+                "cnn_encoder": str(cnn_encoder_path.resolve()),
+                "lightgbm_model": str(lgb_path.resolve())
             },
             "figure_paths": [
                 str((self.config.FIGURES_DIR / "loss_accuracy_curves.png").resolve()),
-                str((self.config.FIGURES_DIR / "roc_confusion_matrix.png").resolve())
+                str((self.config.FIGURES_DIR / "roc_confusion_matrix.png").resolve()),
+                str((self.config.FIGURES_DIR / "model_comparison_plots.png").resolve())
             ],
             "training_duration_seconds": float(duration)
         }
@@ -285,6 +376,33 @@ class Experiment:
         
         return summary
 
+    def _extract_embeddings_and_labels(self, model, loader):
+        model.eval()
+        embeddings_list = []
+        labels_list = []
+        stellar_list = []
+        with torch.no_grad():
+            for x_global, x_local, x_stellar, y_true_batch in loader:
+                x_global = x_global.to(self.config.DEVICE)
+                x_local = x_local.to(self.config.DEVICE)
+                x_stellar = x_stellar.to(self.config.DEVICE)
+                
+                # Penultimate embedding (size 128)
+                emb = model.get_penultimate_embedding(x_global, x_local, x_stellar)
+                
+                embeddings_list.append(emb.cpu().numpy())
+                labels_list.append(y_true_batch.numpy())
+                stellar_list.append(x_stellar.cpu().numpy())
+                
+        # Stack all batches
+        embeddings = np.concatenate(embeddings_list, axis=0)
+        labels = np.concatenate(labels_list, axis=0)
+        stellar = np.concatenate(stellar_list, axis=0)
+        
+        # Concatenate: CNN embedding + stellar parameters -> 131 dimensions
+        fused_features = np.concatenate((embeddings, stellar), axis=1)
+        return fused_features, labels
+
     def validate_experiment_outputs(self) -> dict:
         """
         Validates that all expected artifact files were successfully written to disk.
@@ -293,14 +411,20 @@ class Experiment:
         checks = {
             "best_model_checkpoint": (self.config.MODELS_DIR / "best_model.pt").exists(),
             "final_model_checkpoint": (self.config.MODELS_DIR / "final_model.pt").exists(),
+            "cnn_encoder_checkpoint": (self.config.MODELS_DIR / "cnn_encoder.pt").exists(),
+            "lightgbm_model_txt": (self.config.MODELS_DIR / "lightgbm_model.txt").exists(),
             "metrics_history_csv": (self.config.METRICS_DIR / "history.csv").exists(),
             "evaluation_metrics_csv": (self.config.METRICS_DIR / "evaluation_metrics.csv").exists(),
+            "model_comparison_metrics_csv": (self.config.METRICS_DIR / "model_comparison_metrics.csv").exists(),
             "loss_accuracy_curves": (self.config.FIGURES_DIR / "loss_accuracy_curves.png").exists(),
             "roc_confusion_matrix": (self.config.FIGURES_DIR / "roc_confusion_matrix.png").exists(),
+            "model_comparison_plots": (self.config.FIGURES_DIR / "model_comparison_plots.png").exists(),
             "config_snapshot_json": (self.config.CONFIGS_DIR / "config.json").exists(),
             "experiment_summary_json": (self.config.SUMMARIES_DIR / "experiment_summary.json").exists(),
             "model_summary_txt": (self.config.SUMMARIES_DIR / "model_summary.txt").exists(),
             "predictions_npz": (self.config.PREDICTIONS_DIR / "test_predictions.npz").exists(),
+            "predictions_hybrid_npz": (self.config.PREDICTIONS_DIR / "test_predictions_hybrid.npz").exists(),
+            "feature_embeddings_npz": (self.config.PREDICTIONS_DIR / "feature_embeddings.npz").exists(),
             "training_log": (self.config.LOGS_DIR / "training.log").exists()
         }
         
@@ -318,3 +442,4 @@ class Experiment:
         print("=" * 60 + "\n")
         
         return checks
+

@@ -12,7 +12,7 @@ The pipeline is organized into five sequential steps, each driven by a structure
 2. **02_preprocessing_detrending.ipynb:** Cleans the raw PDCSAP flux. Applies NaN removal, asymmetric outlier sigma clipping ($+5\sigma$ / $-20\sigma$), normalization, and biweight filtering (0.5 day window) to remove low-frequency stellar rotational variability.
 3. **03_transit_search.ipynb:** Sweeps the frequency space using Box Least Squares (BLS) to calculate periodograms and identify candidate transit periods, epochs ($T_0$), depths, and durations.
 4. **04_astronet_features.ipynb:** Phase-folds light curves centered at phase $0.0$ and extracts stellar parameters ($T_{eff}$, $R_*$, $\log g$) from FITS primary headers. Generates standardized binned arrays: a Global View (2001 bins) and a zoomed-in Local View (201 bins). Serializes final datasets to `final_dataset.npz`.
-5. **05_cnn_training.ipynb:** Trains a late-fusion Dual-Branch CNN model (AstroNet format) on the engineered datasets using early stopping and PyTorch compute accelerators (MPS/CUDA/CPU).
+5. **05_cnn_training.ipynb:** Trains a late-fusion Dual-Branch CNN model (AstroNet format) on the engineered datasets using early stopping, extracts penultimate 128-dimensional spatial representations, concatenates them with host star physical attributes, and trains a downstream hybrid LightGBM classifier. Runs on PyTorch compute accelerators (MPS/CUDA/CPU).
 
 ---
 
@@ -27,7 +27,7 @@ The pipeline is organized into five sequential steps, each driven by a structure
 * `notebooks/`: Prototyping and orchestration notebooks (01 to 05).
 * `data/`: Ingested FITS light curves and preprocessed NumPy `.npz` archives.
 * `results/`: Detrending diagnostics, folded light curves, and the central `transit_summary.csv` sheet.
-* `artifacts/`: Houses checkpoints (`best_model.pt`, `final_model.pt`), performance curves, metrics logs, and run telemetry.
+* `artifacts/`: Houses model checkpoints (`best_model.pt`, `final_model.pt`, `cnn_encoder.pt`, `lightgbm_model.txt`), feature embeddings (`feature_embeddings.npz`), performance curves, metrics logs, and run telemetry.
 * `docs/`: Technical specifications and audits.
 
 ---
@@ -36,7 +36,7 @@ The pipeline is organized into five sequential steps, each driven by a structure
 
 * **Language & Runtime:** Python 3.12 (Colab standard) / 3.13 (local), Jupyter
 * **Deep Learning Framework:** PyTorch (`torch`)
-* **Core Libraries:** Lightkurve, Astropy, NumPy, Pandas, SciPy, Matplotlib
+* **Core Libraries:** Lightkurve, Astropy, NumPy, Pandas, SciPy, Matplotlib, LightGBM
 
 ---
 
@@ -45,7 +45,6 @@ The pipeline is organized into five sequential steps, each driven by a structure
 The following features represent planned production extensions and are not part of the current core implementation:
 * **Interactive Dashboard:** Streamlit or Plotly web application interface for real-time visual vetting.
 * **Explainable AI (XAI):** Interpretability mapping using SHAP (SHapley Additive exPlanations) or Grad-CAM to overlay feature attributions on transit curves.
-* **Boosting Classifier Head:** Integration of a LightGBM classifier head downstream of the CNN representation vector.
 * **TESS Multi-Mission Scaling:** Telemetry ingestion scaling to process TESS (Transiting Exoplanet Survey Satellite) profiles.
 * **Denoising Filters:** Signal filtering using Discrete Wavelet Transforms (DWT) to separate stellar flares from planetary transits.
 * **Inference API:** A lightweight REST API serving exoplanet classification predictions in real time.

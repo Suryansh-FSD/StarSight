@@ -85,6 +85,31 @@ class AstroNet(StarSightBaseModel):
             nn.Linear(128, 1)  # Outputs logits for BCEWithLogitsLoss
         )
 
+    def get_penultimate_embedding(self, x_global: torch.Tensor, x_local: torch.Tensor, x_stellar: torch.Tensor) -> torch.Tensor:
+        """
+        Extracts the 128-dimensional representation from the penultimate layer of the classifier head.
+        This contains learned Global View + Local View (+ Stellar context) features.
+        """
+        # Ensure dimensions match (Batch, Channels=1, Length)
+        if x_global.dim() == 2:
+            x_global = x_global.unsqueeze(1)
+        if x_local.dim() == 2:
+            x_local = x_local.unsqueeze(1)
+            
+        g_feat = self.global_branch(x_global)
+        g_feat = g_feat.view(g_feat.size(0), -1)
+        
+        l_feat = self.local_branch(x_local)
+        l_feat = l_feat.view(l_feat.size(0), -1)
+        
+        fused = torch.cat((g_feat, l_feat, x_stellar), dim=1)
+        
+        # Pass through classifier layers up to the penultimate block (first 6 modules)
+        x = fused
+        for i in range(6):
+            x = self.classifier[i](x)
+        return x
+
     def forward(self, x_global: torch.Tensor, x_local: torch.Tensor, x_stellar: torch.Tensor) -> torch.Tensor:
         """
         Forward pass executing CNN branches, fusion, and fully connected classification.

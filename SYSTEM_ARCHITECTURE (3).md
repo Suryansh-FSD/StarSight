@@ -11,7 +11,7 @@
 
 ## **1. Executive Summary**
 
-StarSight is an AI-powered system for detecting exoplanets from noisy astronomical light curves. The system downloads Kepler space telescope observations, preprocesses the raw time-series, detects potential transit events using Box Least Squares (BLS), generates standardized Global and Local Views, and classifies candidates using a custom late-fusion Dual-Branch Convolutional Neural Network (CNN) model (AstroNet format). The architecture is designed for rapid local and cloud container execution, scientific correctness, and verification during the Bharatiya Antariksh Hackathon 2026.
+StarSight is an AI-powered system for detecting exoplanets from noisy astronomical light curves. The system downloads Kepler space telescope observations, preprocesses the raw time-series, detects potential transit events using Box Least Squares (BLS), generates standardized Global and Local Views, and classifies candidates using a custom hybrid deep learning and gradient boosted decision tree architecture. The pipeline processes inputs via a Dual-Branch Convolutional Neural Network (CNN) model (AstroNet format) to extract penultimate 128-dimensional spatial feature representations, concatenates them with physical host-star attributes, and feeds the resulting 131-dimensional feature vector into a LightGBM classifier. The architecture is optimized for rapid local and cloud container execution, scientific correctness, and verification.
 
 ---
 
@@ -32,7 +32,7 @@ Automated exoplanet detection pipelines operating on space-based photometric dat
 
 * **Optimized Execution Pipeline:** Build an integrated data parsing and training stream optimized for fast prototyping and low computational overhead.  
 * **Leakage-Protected Partitioning:** Implement dataset splits that enforce group-stratified splits by host star KIC ID to prevent temporal leakage across train/validation/test pools.  
-* **Integrated Late-Fusion Architecture:** Deploy a multi-modal network combining deep spatial feature extraction on light curves with tabular host-star physical attributes.
+* **Hybrid Classification Architecture:** Deploy a late-fusion GBDT classifier on top of deep spatial CNN representations to optimize decision boundaries on highly imbalanced inputs.
 
 ### **Scientific Objectives**
 
@@ -49,7 +49,7 @@ Automated exoplanet detection pipelines operating on space-based photometric dat
 ## **4. System Workflow**
 
 The StarSight end-to-end data processing workflow is organized into six sequential phases:  
-**NASA Kepler Archive → Download FITS Files → PDCSAP Flux Extraction → Cleaning (NaN Removal, Asymmetric Sigma Clipping, Normalization, Biweight Detrending) → Box Least Squares (BLS) Periodogram Sweep → Phase Folding → AstroNet Global & Local Views Generation → Dual-Branch CNN Classification (Global + Local branches + Stellar parameters Late Fusion) → Planet Candidate Probability Output.**
+**NASA Kepler Archive → Download FITS Files → PDCSAP Flux Extraction → Cleaning (NaN Removal, Asymmetric Sigma Clipping, Normalization, Biweight Detrending) → Box Least Squares (BLS) Periodogram Sweep → Phase Folding → AstroNet Global & Local Views Generation → Dual-Branch CNN Feature Extraction (Global + Local branches) → Penultimate Embedding Extraction (128-dim) → Concatenation with Stellar Parameters (131-dim) → Downstream LightGBM Classification → Planet Candidate Probability Output.**
 
 ```
 graph TD
@@ -62,9 +62,10 @@ F --> G[Global View (2001 bins)]
 F --> H[Local View (201 bins)]
 G --> I[Dual 1D CNN]
 H --> I
-I --> J[Late Feature Fusion + Stellar Parameters]
-J --> K[Dense Classifier Head]
-K --> L[Candidate Probability Output]
+I --> J[Extract 128-dim Penultimate Representation]
+J --> K[Concatenate with Stellar Parameters -> 131-dim]
+K --> L[LightGBM GBDT Classifier]
+L --> M[Candidate Probability Output]
 ```
 
 ---
@@ -75,7 +76,7 @@ The granular breakdown of each software module:
 
 ### **Module 1: Telemetry Data Ingestion (data_acquisition)**
 * **Purpose:** Stream raw multi-dimensional satellite telemetry files and isolate uncorrected target light curves.  
-* **Responsibilities:** Parse multi-extension FITS files; pull spatial headers; compute integrated flux counts.  
+* **Responsibilities:** Parse FITS files; pull spatial headers; compute integrated flux counts.  
 * **Inputs:** Raw space archive `.fits` target pixel files.  
 * **Outputs:** DataFrames containing Time ($t$) and PDCSAP Flux.  
 * **Python Libraries:** `astropy.io.fits`, `lightkurve`, `numpy`, `pandas`.  
@@ -85,13 +86,13 @@ The granular breakdown of each software module:
 * **Purpose:** Partition, structure, and serve data inputs under strict scientific cross-validation rules.  
 * **Responsibilities:** Enforce group-stratified splitting by unique target host star identifier to eliminate data leakage.  
 * **Inputs:** Time-series binned arrays; tabular host-star physical properties.  
-* **Outputs:** Train (9 samples), Validation (3 samples), and Test (4 samples) PyTorch DataLoaders.  
+* **Outputs:** Train, Validation, and Test PyTorch DataLoaders.  
 * **Python Libraries:** `pandas`, `scikit-learn` (`train_test_split`).  
 * **Folder Location:** `data/processed/`  
 
 ### **Module 3: Systematics Rectification Core (preprocessing)**
 * **Purpose:** Cleanse signal data for downstream classification while preserving physical transit geometric shapes.  
-* **Responsibilities:** Apply asymmetric outlier clipping ($+5\sigma$ to remove positive cosmic ray spikes, protecting $-20\sigma$ transit dips), perform windowed biweight detrending (0.5 day window) to isolate stellar rotation, and normalize flux.  
+* **Responsibilities:** Apply asymmetric outlier clipping ($+5\sigma$ / $-20\sigma$), perform windowed biweight detrending (0.5 day window) to isolate stellar rotation, and normalize flux.  
 * **Inputs:** FITS target pixel files and light curves.  
 * **Outputs:** Preprocessed flux timelines.  
 * **Python Libraries:** `scipy`, `lightkurve`.  
@@ -113,13 +114,21 @@ The granular breakdown of each software module:
 * **Python Libraries:** `numpy`.  
 * **Folder Location:** `data/processed/`
 
-### **Module 6: Trimodal Deep Representation Engine & Classifier (astronet)**
-* **Purpose:** Extract spatial feature embeddings from multi-resolution phase-folded views and output exoplanet candidate probabilities.  
-* **Responsibilities:** Process Global Views via 1D Convolutional layers, process Local Views via parallel 1D Convolutional layers, process tabular stellar metadata via fully connected layers, concatenate representations, and map to a final classification output.  
+### **Module 6: Trimodal Deep Representation Engine (astronet)**
+* **Purpose:** Extract spatial feature embeddings from multi-resolution phase-folded views.  
+* **Responsibilities:** Process Global Views via 1D Convolutional layers, process Local Views via parallel 1D Convolutional layers, concatenate deep representations, and extract a 128-dimensional penultimate embedding vector.  
 * **Inputs:** Global and Local binned arrays, tabular stellar parameters.  
-* **Outputs:** Continuous planet candidate probability in the range $[0, 1]$.  
+* **Outputs:** 128-dimensional spatial feature representation.  
 * **Python Libraries:** `torch`.  
 * **Folder Location:** `src/models/`  
+
+### **Module 7: Downstream Boosting Classifier Core (lightgbm)**
+* **Purpose:** Perform final exoplanet candidate classification using gradient boosted decision trees.  
+* **Responsibilities:** Concatenate the 128-dimensional CNN representation with 3 physical host-star properties ($T_{eff}$, $R_*$, $\log g$), train a leaf-wise LightGBM GBDT classifier, and save the model configuration.  
+* **Inputs:** 131-dimensional combined feature vectors.  
+* **Outputs:** Continuous planet candidate probability in the range $[0, 1]$.  
+* **Python Libraries:** `lightgbm`.  
+* **Folder Location:** `src/experiment/` and `artifacts/models/`
 
 ---
 
@@ -131,8 +140,10 @@ The granular breakdown of each software module:
 2. **Systematics Rectification:** Raw timelines undergo asymmetric sigma clipping ($+5\sigma$ / $-20\sigma$) to clean noise, followed by biweight detrending to remove slow stellar rotational signals.  
 3. **Periodicity Search & Resolution Phase-Folding:** Box Least Squares (BLS) estimates the transit period and epoch ($T_0$) to fold and center the flux timeline at Phase $0.0$.  
 4. **Feature Binning:** The folded timeline is binned into two resolution profiles: a Global View (2001 bins) capturing the entire orbital phase and a Local View (201 bins) isolating the transit event. Host-star properties are loaded from primary FITS headers. Output is serialized into `final_dataset.npz`.  
-5. **Dual-Branch CNN Feature Extraction:** The Global View passes through 1D Convolutional layers to capture long-duration variability, while the Local View passes through parallel 1D Convolutional layers to extract transit slopes. Tabular stellar properties pass through a linear layer.  
-6. **Feature Fusion & Classification:** Deep CNN feature outputs are fused with the tabular stellar properties, producing a combined 67-element representation vector. A fully connected dense layer maps this vector to a single raw logit, which is activated via a Sigmoid function to output the final planet candidate probability.
+5. **Dual-Branch CNN Feature Extraction:** The Global View passes through 1D Convolutional layers to capture long-duration variability, while the Local View passes through parallel 1D Convolutional layers to extract transit slopes.  
+6. **Penultimate Representation Extraction:** Deep spatial features are mapped through the first linear blocks of the classifier head to extract a unified 128-dimensional representation vector.  
+7. **Feature Fusion:** The 128-dimensional spatial representation is concatenated with the 3 raw host-star properties ($T_{eff}$, $R_*$, $\log g$), generating a 131-dimensional hybrid vector.  
+8. **Downstream GBDT Classification:** The 131-dimensional vector feeds the LightGBM classifier to produce the final planet candidate probability.
 
 ---
 
@@ -147,12 +158,12 @@ The project directory structure is organized as follows:
 * `notebooks/`: Orchestration notebooks (01 to 05) designed for local or Colab execution.  
 * `src/`: Core Python source code:
   * `config.py`: Centralized configuration variables (directories, hyperparameters, compute devices).
-  * `experiment/experiment.py`: Lifecycle manager orchestrating checkpoints, snapshots, and evaluations.
+  * `experiment/experiment.py`: Lifecycle manager orchestrating checkpoints, snapshots, evaluations, and hybrid classifier training.
   * `models/`: Neural network architecture, datasets, metrics, and training loops.
   * `utils/`: Environmental checks, repository bootstrappers, and random seeds utilities.
   * `visualization/`: Matplotlib plotting scripts for training history and evaluations.
 * `results/`: Stores transit metrics (`transit_summary.csv`), detrending plots, and periodic folded curves.  
-* `artifacts/`: Houses model weights checkpoints (`best_model.pt`, `final_model.pt`), configuration snapshots, diagnostic loss/ROC curves, metrics spreadsheets, and logs.
+* `artifacts/`: Houses model weights checkpoints (`best_model.pt`, `final_model.pt`, `cnn_encoder.pt`, `lightgbm_model.txt`), feature embeddings (`feature_embeddings.npz`), configuration snapshots, diagnostic loss/ROC curves, comparison metrics/plots, and logs.
 
 ---
 
@@ -163,25 +174,26 @@ The core tools utilized in the StarSight implementation:
 | Component | Tech Suite | Justification |
 | :--- | :--- | :--- |
 | **Language & IDE** | Python 3.12 (Colab standard) / 3.13 (local), Jupyter | Standard tools for astronomical scripting, prototyping, and execution. |
-| **Deep Learning** | PyTorch (`torch`) | Enables modular 1D-CNN architectures, late feature fusion, and late activation. |
+| **Deep Learning** | PyTorch (`torch`) | Enables modular 1D-CNN architectures, late feature fusion, and penultimate embedding extraction. |
+| **Ensemble Learning** | LightGBM (`lightgbm`) | Lightweight gradient boosting classifier optimized for high-dimensional tabular inputs and extreme class imbalance. |
 | **Core Utilities** | Lightkurve, Astropy, NumPy, Pandas, SciPy | Standard toolset for parsing FITS telemetry, running BLS sweeps, and processing arrays. |
-| **Visualization** | Matplotlib | Generates diagnostic curves, confusion matrices, and ROC plots. |
+| **Visualization** | Matplotlib | Generates diagnostic curves, confusion matrices, and model comparison plots. |
 | **Version Control** | Git, GitHub | Source code tracking and remote synchronization. |
 
 ---
 
 ## **9. Model Evaluation**
 
-* **Evaluation Metrics:** The system evaluates classifications using Precision, Recall, F1 Score, ROC-AUC, and Confusion Matrices.
+* **Evaluation Metrics:** The system evaluates standalone CNN and hybrid CNN+LightGBM classifications using Accuracy, Precision, Recall, F1 Score, ROC-AUC, Confusion Matrices, and Training/Inference execution times.
 * **Validation Strategy:** Enforces a Group-stratified train/validation/test split based on host-star target IDs (using a fixed seed 42) to eliminate temporal leakage.
-* **Outputs Generated:** Model performance is saved inside the `artifacts/` folder as `history.csv`, `evaluation_metrics.csv`, and associated diagnostic figures.
+* **Outputs Generated:** Performance is saved inside the `artifacts/` folder as `evaluation_metrics.csv`, `model_comparison_metrics.csv`, and associated model comparison curves (`model_comparison_plots.png`).
 
 ---
 
 ## **10. Expected Output**
 
 * **Input:** Raw FITS Light Curve.  
-* **Output:** Planet Candidate Probability, Transit Period, Transit Duration, Epoch ($T_0$).
+* **Output:** Planet Candidate Probability, Transit Period, Transit Duration, Epoch ($T_0$), and Model Comparison Metrics.
 
 ---
 
@@ -197,7 +209,6 @@ The following features represent planned extensions and are not included in the 
 
 * **Interactive Frontend Dashboard:** An interactive web dashboard utilizing Streamlit or Plotly for real-time target visualization and prediction vetting.
 * **Integrated Explainability Engine:** Explainable AI (XAI) mapping using SHAP (SHapley Additive exPlanations) or Grad-CAM to plot feature attributions and isolate transit boundaries.
-* **Gradient-Boosting Classifier Head:** Integration of a leaf-wise LightGBM classifier head downstream of the CNN feature extractor to optimize decision boundaries on highly imbalanced datasets.
 * **TESS Multi-Mission Scaling:** Extending telemetry ingestion routines to process high-noise, short-baseline TESS (Transiting Exoplanet Survey Satellite) profiles.
 * **Signal Denoising:** Advanced filtering using Discrete Wavelet Transforms (DWT) to separate stellar flares from transits.
 * **Inference API:** A lightweight REST API for serving classification predictions in real time.

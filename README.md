@@ -1,5 +1,7 @@
 # **StarSight: AI-Enabled Detection of Exoplanets**
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Suryansh-FSD/StarSight/blob/main/notebooks/05_cnn_training.ipynb)
+
 StarSight is an end-to-end scientific pipeline for detecting periodic transit signals of exoplanets from raw astronomical light curves using deep learning.
 
 ---
@@ -16,14 +18,42 @@ The pipeline is organized into five sequential steps, each driven by a structure
 
 ---
 
-## **2. Directory Structure**
+## **2. Cloud-Native & Containerized Execution**
+
+### **Option A: One-Click Colab Setup**
+Click the **Open In Colab** badge at the top of this file. In the notebook execution cell:
+1. Google Drive will automatically mount if prompted.
+2. The project repository is automatically cloned/synchronized.
+3. Dependencies are installed and target Kepler light curves are downloaded from the MAST archive.
+
+### **Option B: Local / Development Setup**
+Choose the appropriate platform setup script to automate virtual environment initialization and requirements installation:
+- **macOS / Linux:** Run `./setup.sh`
+- **Windows Command Prompt:** Run `setup.bat`
+- **Windows PowerShell:** Run `.\setup.ps1`
+
+### **Option C: Docker Containerization**
+To compile and run the interactive Streamlit dashboard locally without setting up a Python environment:
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+```
+The dashboard will be active on [http://localhost:8501](http://localhost:8501).
+
+### **Option D: Streamlit Community Cloud**
+Deploy the interactive vetting dashboard directly to Streamlit Cloud by linking your fork of this repository. The setup will automatically reference `requirements.txt` to install the runtime stack.
+
+---
+
+## **3. Directory Structure**
 
 * `src/`: Core Python implementations:
   * `config.py`: Centralized training hyperparameters, compute device cascade, and path definitions.
   * `experiment/experiment.py`: Orchestrator managing training configurations, snapshots, and evaluations.
-  * `models/`: PyTorch neural networks architectures, dataset loaders, metrics, explainability, and training loops.
+  * `models/`: PyTorch neural networks architectures, dataset loaders, GBDT wrappers, metrics, explainability, and training loops.
   * `utils/`: Environmental checks, repository bootstrappers, and deterministic random seeds.
   * `visualization/`: Matplotlib plotting scripts for training curves.
+* `app/`: Dashboard source code and subpages.
 * `notebooks/`: Prototyping and orchestration notebooks (01 to 05).
 * `data/`: Ingested FITS light curves and preprocessed NumPy `.npz` archives.
 * `results/`: Stores transit metrics (`transit_summary.csv`), detrending plots, and periodic folded curves.
@@ -32,15 +62,15 @@ The pipeline is organized into five sequential steps, each driven by a structure
 
 ---
 
-## **3. Technology Stack**
+## **4. Technology Stack**
 
 * **Language & Runtime:** Python 3.12 (Colab standard) / 3.13 (local), Jupyter
 * **Deep Learning Framework:** PyTorch (`torch`)
-* **Core Libraries:** Lightkurve, Astropy, NumPy, Pandas, SciPy, Matplotlib, LightGBM, SHAP
+* **Core Libraries:** Lightkurve, Astropy, NumPy, Pandas, SciPy, Matplotlib, LightGBM, SHAP, Streamlit, Plotly
 
 ---
 
-## **4. Explainable AI (SHAP & Grad-CAM) Workflow**
+## **5. Explainable AI (SHAP & Grad-CAM) Workflow**
 
 To ensure scientific correctness and transparency, StarSight integrates model explainability at both the neural network and booster levels:
 
@@ -55,10 +85,9 @@ To ensure scientific correctness and transparency, StarSight integrates model ex
 
 ---
 
-## **5. Future Enhancements**
+## **6. Future Enhancements**
 
 The following features represent planned production extensions and are not part of the current core implementation:
-* **Interactive Dashboard:** Streamlit or Plotly web application interface for real-time visual vetting.
 * **TESS Multi-Mission Scaling:** Telemetry ingestion scaling to process TESS (Transiting Exoplanet Survey Satellite) profiles.
 * **Denoising Filters:** Signal filtering using Discrete Wavelet Transforms (DWT) to separate stellar flares from planetary transits.
 * **Inference API:** A lightweight REST API serving exoplanet classification predictions in real time.

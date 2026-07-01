@@ -187,6 +187,12 @@ The project directory structure is organized as follows:
   * `visualization/`: Matplotlib plotting scripts for training history and evaluations.
 * `results/`: Stores transit metrics (`transit_summary.csv`), detrending plots, and periodic folded curves.  
 * `artifacts/`: Houses model weights checkpoints (`best_model.pt`, `final_model.pt`, `cnn_encoder.pt`, `lightgbm_model.txt`, `lightgbm.pkl`), feature embeddings (`feature_embeddings.npz`), configuration snapshots, diagnostic loss/ROC curves, metrics logs (`history.csv`, `evaluation_metrics.csv`, `lightgbm_metrics.csv`, `comparison.csv`), comparison metrics/plots, SHAP explainability visualizations/arrays (`explainability/`), Grad-CAM spatial visualizations/numpy arrays/validation logs (`gradcam/` & `validation/`), and logs.
+* **Cloud-Native Deployment Assets:**
+  - `Dockerfile` & `docker-compose.yml`: Multi-stage Docker config for containerized execution.
+  - `setup.sh` / `setup.bat` / `setup.ps1`: Cross-platform quick setup scripts.
+  - `requirements.txt` & `requirements-dev.txt`: Project runtime and dev dependency logs.
+  - `environment.yml`: Conda channel/packages blueprint.
+  - `.github/workflows/ci.yml`: Automated CI tests/linters workflow.
 
 ---
 

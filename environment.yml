@@ -1,0 +1,20 @@
+name: starsight
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - numpy
+      - pandas
+      - scipy
+      - matplotlib
+      - torch
+      - lightgbm
+      - shap
+      - astropy
+      - lightkurve
+      - streamlit
+      - plotly
+      - scikit-learn

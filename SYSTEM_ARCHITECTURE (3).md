@@ -11,7 +11,7 @@
 
 ## **1. Executive Summary**
 
-StarSight is an AI-powered system for detecting exoplanets from noisy astronomical light curves. The system downloads Kepler space telescope observations, preprocesses the raw time-series, detects potential transit events using Box Least Squares (BLS), generates standardized Global and Local Views, and classifies candidates using a custom hybrid deep learning and gradient boosted decision tree architecture. The pipeline processes inputs via a Dual-Branch Convolutional Neural Network (CNN) model (AstroNet format) to extract penultimate 128-dimensional spatial feature representations, concatenates them with physical host-star attributes, and feeds the resulting 131-dimensional feature vector into a LightGBM classifier. The architecture is optimized for rapid local and cloud container execution, scientific correctness, and verification.
+StarSight is an AI-powered system for detecting exoplanets from noisy astronomical light curves. The system downloads Kepler space telescope observations, preprocesses the raw time-series, detects potential transit events using Box Least Squares (BLS), generates standardized Global and Local Views, and classifies candidates using a custom hybrid deep learning and gradient boosted decision tree architecture. The pipeline processes inputs via a Dual-Branch Convolutional Neural Network (CNN) model (AstroNet format) to extract penultimate 128-dimensional spatial feature representations, concatenates them with physical host-star attributes, and feeds the resulting 131-dimensional feature vector into a LightGBM classifier. The pipeline automatically calculates SHAP (SHapley Additive exPlanations) values using a TreeExplainer to explain individual and global model predictions, exporting diagnostics to a dedicated explainability dashboard. The architecture is optimized for rapid local and cloud container execution, scientific correctness, and verification.
 
 ---
 
@@ -38,7 +38,7 @@ Automated exoplanet detection pipelines operating on space-based photometric dat
 
 * **Stellar Context Grounding:** Incorporate host-star physical properties (radius $R_*$, effective temperature $T_{eff}$, and surface gravity $\log g$) directly into the final classification head to ground predictions in real stellar physics.  
 * **Systematics Rectification:** Process raw light curves by applying NaN removal, asymmetric outlier sigma clipping, biweight detrending, and normalization to isolate the transit signal cleanly.  
-* **Strict Reproducibility:** Ensure all random operations (data splits, model weights initialization, batch shuffling) are deterministic and governed by a centralized seed.
+* **Strict Interpretability & Reproducibility:** Ensure all model predictions are interpreted dynamically via Shapley feature attributions, and make all random operations deterministic and governed by a centralized seed.
 
 ### **Hackathon & Deployment Scope**
 
@@ -49,7 +49,7 @@ Automated exoplanet detection pipelines operating on space-based photometric dat
 ## **4. System Workflow**
 
 The StarSight end-to-end data processing workflow is organized into six sequential phases:  
-**NASA Kepler Archive → Download FITS Files → PDCSAP Flux Extraction → Cleaning (NaN Removal, Asymmetric Sigma Clipping, Normalization, Biweight Detrending) → Box Least Squares (BLS) Periodogram Sweep → Phase Folding → AstroNet Global & Local Views Generation → Dual-Branch CNN Feature Extraction (Global + Local branches) → Penultimate Embedding Extraction (128-dim) → Concatenation with Stellar Parameters (131-dim) → Downstream LightGBM Classification → Planet Candidate Probability Output.**
+**NASA Kepler Archive → Download FITS Files → PDCSAP Flux Extraction → Cleaning (NaN Removal, Asymmetric Sigma Clipping, Normalization, Biweight Detrending) → Box Least Squares (BLS) Periodogram Sweep → Phase Folding → AstroNet Global & Local Views Generation → Dual-Branch CNN Feature Extraction (Global + Local branches) → Penultimate Embedding Extraction (128-dim) → Concatenation with Stellar Parameters (131-dim) → Downstream LightGBM Classification → SHAP Interpretability Attributions → Planet Candidate Probability Output + Explanations.**
 
 ```
 graph TD
@@ -65,7 +65,10 @@ H --> I
 I --> J[Extract 128-dim Penultimate Representation]
 J --> K[Concatenate with Stellar Parameters -> 131-dim]
 K --> L[LightGBM GBDT Classifier]
+L --> N[SHAP Explainability Analyzer]
 L --> M[Candidate Probability Output]
+N --> O[Global Importance & Beeswarm Plots]
+N --> P[Waterfall & Force plots per prediction]
 ```
 
 ---
@@ -130,6 +133,14 @@ The granular breakdown of each software module:
 * **Python Libraries:** `lightgbm`.  
 * **Folder Location:** `src/experiment/` and `artifacts/models/`
 
+### **Module 8: Explainable AI Engine (explainability)**
+* **Purpose:** Provide transparent model transparency diagnostic plots and attribution arrays.  
+* **Responsibilities:** Fit `shap.TreeExplainer` on the trained LightGBM model, extract global importance bar plots, beeswarm summary plots, waterfall attribution curves, and interactive force plots for target predictions.  
+* **Inputs:** LightGBM booster configuration, training and test embeddings.  
+* **Outputs:** Interpretability PNG/HTML diagnostics and `shap_explanations.npz` raw arrays.  
+* **Python Libraries:** `shap`, `matplotlib`.  
+* **Folder Location:** `src/models/` and `artifacts/explainability/`
+
 ---
 
 ## **6. Data Flow**
@@ -144,6 +155,7 @@ The granular breakdown of each software module:
 6. **Penultimate Representation Extraction:** Deep spatial features are mapped through the first linear blocks of the classifier head to extract a unified 128-dimensional representation vector.  
 7. **Feature Fusion:** The 128-dimensional spatial representation is concatenated with the 3 raw host-star properties ($T_{eff}$, $R_*$, $\log g$), generating a 131-dimensional hybrid vector.  
 8. **Downstream GBDT Classification:** The 131-dimensional vector feeds the LightGBM classifier to produce the final planet candidate probability.
+9. **Explainability Attribution mapping:** The LightGBM classifier weights are evaluated using SHAP game-theoretic Shapley values, calculating direct feature attributions for all 131 parameters and plotting summaries.
 
 ---
 
@@ -163,7 +175,7 @@ The project directory structure is organized as follows:
   * `utils/`: Environmental checks, repository bootstrappers, and random seeds utilities.
   * `visualization/`: Matplotlib plotting scripts for training history and evaluations.
 * `results/`: Stores transit metrics (`transit_summary.csv`), detrending plots, and periodic folded curves.  
-* `artifacts/`: Houses model weights checkpoints (`best_model.pt`, `final_model.pt`, `cnn_encoder.pt`, `lightgbm_model.txt`), feature embeddings (`feature_embeddings.npz`), configuration snapshots, diagnostic loss/ROC curves, comparison metrics/plots, and logs.
+* `artifacts/`: Houses model weights checkpoints (`best_model.pt`, `final_model.pt`, `cnn_encoder.pt`, `lightgbm_model.txt`), feature embeddings (`feature_embeddings.npz`), configuration snapshots, diagnostic loss/ROC curves, comparison metrics/plots, SHAP explainability visualizations/arrays (`explainability/`), and logs.
 
 ---
 
@@ -176,8 +188,9 @@ The core tools utilized in the StarSight implementation:
 | **Language & IDE** | Python 3.12 (Colab standard) / 3.13 (local), Jupyter | Standard tools for astronomical scripting, prototyping, and execution. |
 | **Deep Learning** | PyTorch (`torch`) | Enables modular 1D-CNN architectures, late feature fusion, and penultimate embedding extraction. |
 | **Ensemble Learning** | LightGBM (`lightgbm`) | Lightweight gradient boosting classifier optimized for high-dimensional tabular inputs and extreme class imbalance. |
+| **Interpretability** | SHAP (`shap`) | SHapley Additive exPlanations module providing global and local attribution mappings. |
 | **Core Utilities** | Lightkurve, Astropy, NumPy, Pandas, SciPy | Standard toolset for parsing FITS telemetry, running BLS sweeps, and processing arrays. |
-| **Visualization** | Matplotlib | Generates diagnostic curves, confusion matrices, and model comparison plots. |
+| **Visualization** | Matplotlib | Generates diagnostic curves, confusion matrices, model comparison plots, and SHAP diagrams. |
 | **Version Control** | Git, GitHub | Source code tracking and remote synchronization. |
 
 ---
@@ -186,14 +199,14 @@ The core tools utilized in the StarSight implementation:
 
 * **Evaluation Metrics:** The system evaluates standalone CNN and hybrid CNN+LightGBM classifications using Accuracy, Precision, Recall, F1 Score, ROC-AUC, Confusion Matrices, and Training/Inference execution times.
 * **Validation Strategy:** Enforces a Group-stratified train/validation/test split based on host-star target IDs (using a fixed seed 42) to eliminate temporal leakage.
-* **Outputs Generated:** Performance is saved inside the `artifacts/` folder as `evaluation_metrics.csv`, `model_comparison_metrics.csv`, and associated model comparison curves (`model_comparison_plots.png`).
+* **Outputs Generated:** Performance is saved inside the `artifacts/` folder as `evaluation_metrics.csv`, `model_comparison_metrics.csv`, model comparison curves (`model_comparison_plots.png`), and SHAP explainability files (`explainability/`).
 
 ---
 
 ## **10. Expected Output**
 
 * **Input:** Raw FITS Light Curve.  
-* **Output:** Planet Candidate Probability, Transit Period, Transit Duration, Epoch ($T_0$), and Model Comparison Metrics.
+* **Output:** Planet Candidate Probability, Transit Period, Transit Duration, Epoch ($T_0$), Model Comparison Metrics, and SHAP Interpretability attributions.
 
 ---
 
@@ -208,7 +221,6 @@ The core tools utilized in the StarSight implementation:
 The following features represent planned extensions and are not included in the current core implementation:
 
 * **Interactive Frontend Dashboard:** An interactive web dashboard utilizing Streamlit or Plotly for real-time target visualization and prediction vetting.
-* **Integrated Explainability Engine:** Explainable AI (XAI) mapping using SHAP (SHapley Additive exPlanations) or Grad-CAM to plot feature attributions and isolate transit boundaries.
 * **TESS Multi-Mission Scaling:** Extending telemetry ingestion routines to process high-noise, short-baseline TESS (Transiting Exoplanet Survey Satellite) profiles.
 * **Signal Denoising:** Advanced filtering using Discrete Wavelet Transforms (DWT) to separate stellar flares from transits.
 * **Inference API:** A lightweight REST API for serving classification predictions in real time.

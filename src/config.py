@@ -39,9 +39,10 @@ LOGS_DIR = ARTIFACTS_DIR / "logs"
 PREDICTIONS_DIR = ARTIFACTS_DIR / "predictions"
 CONFIGS_DIR = ARTIFACTS_DIR / "configs"
 SUMMARIES_DIR = ARTIFACTS_DIR / "summaries"
+EXPLAINABILITY_DIR = ARTIFACTS_DIR / "explainability"
 
 # Part 4: Automatically create directories if missing
-for folder in [RAW_DIR, PROCESSED_DIR, RESULTS_DIR, MODELS_DIR, METRICS_DIR, FIGURES_DIR, LOGS_DIR, PREDICTIONS_DIR, CONFIGS_DIR, SUMMARIES_DIR]:
+for folder in [RAW_DIR, PROCESSED_DIR, RESULTS_DIR, MODELS_DIR, METRICS_DIR, FIGURES_DIR, LOGS_DIR, PREDICTIONS_DIR, CONFIGS_DIR, SUMMARIES_DIR, EXPLAINABILITY_DIR]:
     folder.mkdir(parents=True, exist_ok=True)
 
 # Training Hyperparameters
@@ -58,17 +59,29 @@ PATIENCE = EARLY_STOPPING_PATIENCE
 BATCH_SIZE = 32
 GRAD_CLIP = 1.0
 
-# Compute Device Detection Cascade with PyTorch fallback
-try:
-    import torch
-    if torch.cuda.is_available():
-        DEVICE = torch.device("cuda")
-    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-        DEVICE = torch.device("mps")
-    else:
-        DEVICE = torch.device("cpu")
-except ImportError:
-    DEVICE = "cpu (PyTorch not installed)"
+# Compute Device Detection Cascade with PyTorch fallback (Lazy Loaded to prevent PyTorch loading on post-processing)
+_device_cached = None
+
+def get_device():
+    global _device_cached
+    if _device_cached is not None:
+        return _device_cached
+    try:
+        import torch
+        if torch.cuda.is_available():
+            _device_cached = torch.device("cuda")
+        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            _device_cached = torch.device("mps")
+        else:
+            _device_cached = torch.device("cpu")
+    except ImportError:
+        _device_cached = "cpu"
+    return _device_cached
+
+def __getattr__(name):
+    if name == 'DEVICE':
+        return get_device()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 GLOBAL_BINS = 2001
 LOCAL_BINS = 201

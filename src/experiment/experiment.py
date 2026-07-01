@@ -3,6 +3,7 @@ import time
 import datetime
 import logging
 import subprocess
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
@@ -330,13 +331,25 @@ class Experiment:
         df_comparison.to_csv(comparison_csv_path, index=False)
         self.logger.info(f"Saved model comparison metrics to {comparison_csv_path.name}")
         
-        # 6. Decoupled Plotting Visualization
-        plot_diagnostic_curves(history, self.config.FIGURES_DIR)
-        plot_roc_and_confusion_matrix(y_true, y_pred_probs, self.config.FIGURES_DIR)
+        # 6. Decoupled Plotting Visualization and SHAP Explanation (via Subprocess to prevent macOS/MPS conflicts)
+        self.logger.info("Triggering decoupled post-processing script for figures and SHAP explainability...")
+        import subprocess
+        import sys
         
-        # Save comparison plots
-        from src.visualization.plots import plot_model_comparison
-        plot_model_comparison(y_test, y_pred_probs, hybrid_pred_probs, cnn_metrics, hybrid_metrics, self.config.FIGURES_DIR)
+        post_process_script = Path(__file__).resolve().parent / "post_process.py"
+        try:
+            result = subprocess.run(
+                [sys.executable, str(post_process_script)],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            self.logger.info("Decoupled post-processing pipeline finished successfully.")
+            self.logger.debug(result.stdout)
+        except subprocess.CalledProcessError as e:
+            self.logger.error("Decoupled post-processing pipeline failed:")
+            self.logger.error(e.stderr)
+            raise e
         
         # 7. Export Experiment Summary JSON to summaries/
         summary = {
@@ -356,12 +369,15 @@ class Experiment:
                 "best_model": str((self.config.MODELS_DIR / "best_model.pt").resolve()),
                 "final_model": str((self.config.MODELS_DIR / "final_model.pt").resolve()),
                 "cnn_encoder": str(cnn_encoder_path.resolve()),
-                "lightgbm_model": str(lgb_path.resolve())
+                "lightgbm_model": str(lgb_path.resolve()),
+                "shap_explanations": str((self.config.EXPLAINABILITY_DIR / "shap_explanations.npz").resolve())
             },
             "figure_paths": [
                 str((self.config.FIGURES_DIR / "loss_accuracy_curves.png").resolve()),
                 str((self.config.FIGURES_DIR / "roc_confusion_matrix.png").resolve()),
-                str((self.config.FIGURES_DIR / "model_comparison_plots.png").resolve())
+                str((self.config.FIGURES_DIR / "model_comparison_plots.png").resolve()),
+                str((self.config.EXPLAINABILITY_DIR / "global_feature_importance.png").resolve()),
+                str((self.config.EXPLAINABILITY_DIR / "summary_beeswarm_plot.png").resolve())
             ],
             "training_duration_seconds": float(duration)
         }
@@ -425,6 +441,9 @@ class Experiment:
             "predictions_npz": (self.config.PREDICTIONS_DIR / "test_predictions.npz").exists(),
             "predictions_hybrid_npz": (self.config.PREDICTIONS_DIR / "test_predictions_hybrid.npz").exists(),
             "feature_embeddings_npz": (self.config.PREDICTIONS_DIR / "feature_embeddings.npz").exists(),
+            "global_feature_importance_png": (self.config.EXPLAINABILITY_DIR / "global_feature_importance.png").exists(),
+            "summary_beeswarm_plot_png": (self.config.EXPLAINABILITY_DIR / "summary_beeswarm_plot.png").exists(),
+            "shap_explanations_npz": (self.config.EXPLAINABILITY_DIR / "shap_explanations.npz").exists(),
             "training_log": (self.config.LOGS_DIR / "training.log").exists()
         }
         

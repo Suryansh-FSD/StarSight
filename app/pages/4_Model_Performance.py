@@ -2,13 +2,7 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 from PIL import Image
-from utils import inject_custom_css
-
-# Resolve base directories
-ROOT_DIR = Path("/Users/suryanshdixit/Desktop/StarSight")
-ARTIFACTS_DIR = ROOT_DIR / "artifacts"
-FIGURES_DIR = ARTIFACTS_DIR / "figures"
-METRICS_DIR = ARTIFACTS_DIR / "metrics"
+from utils import inject_custom_css, ROOT_DIR, ARTIFACTS_DIR, FIGURES_DIR, METRICS_DIR
 
 def main():
     inject_custom_css()

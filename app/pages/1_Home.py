@@ -2,13 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 from pathlib import Path
-from utils import inject_custom_css, render_metric_card
-
-# Resolve base directories
-ROOT_DIR = Path("/Users/suryanshdixit/Desktop/StarSight")
-ARTIFACTS_DIR = ROOT_DIR / "artifacts"
-METRICS_DIR = ARTIFACTS_DIR / "metrics"
-SUMMARIES_DIR = ARTIFACTS_DIR / "summaries"
+from utils import inject_custom_css, render_metric_card, ROOT_DIR, ARTIFACTS_DIR, METRICS_DIR, SUMMARIES_DIR
 
 def main():
     inject_custom_css()

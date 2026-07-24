@@ -3,13 +3,8 @@ import json
 from pathlib import Path
 from PIL import Image
 import pandas as pd
-from utils import inject_custom_css
+from utils import inject_custom_css, ROOT_DIR, ARTIFACTS_DIR, EXPLAINABILITY_DIR, GRADCAM_DIR
 
-# Resolve base directories
-ROOT_DIR = Path("/Users/suryanshdixit/Desktop/StarSight")
-ARTIFACTS_DIR = ROOT_DIR / "artifacts"
-EXPLAINABILITY_DIR = ARTIFACTS_DIR / "explainability"
-GRADCAM_DIR = ARTIFACTS_DIR / "gradcam"
 GRADCAM_OVERLAYS_DIR = GRADCAM_DIR / "overlays"
 GRADCAM_COMPARISON_DIR = GRADCAM_DIR / "comparison"
 

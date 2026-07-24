@@ -14,8 +14,8 @@ import lightkurve as lk
 from scipy.interpolate import interp1d
 from scipy.stats import sigmaclip
 
-# Resolve base directories
-ROOT_DIR = Path("/Users/suryanshdixit/Desktop/StarSight")
+# Resolve base directories dynamically relative to the script location
+ROOT_DIR = Path(__file__).resolve().parent.parent
 ARTIFACTS_DIR = ROOT_DIR / "artifacts"
 MODELS_DIR = ARTIFACTS_DIR / "models"
 METRICS_DIR = ARTIFACTS_DIR / "metrics"
